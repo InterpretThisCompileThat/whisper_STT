@@ -1,0 +1,68 @@
+version: "3.7"
+services:
+  mongo_db:
+    image: "mongo:4.4.3"
+    restart: always
+    networks:
+    - new
+    ports:
+    - 27018:27017
+    volumes:
+    - './data:/data/db'
+  gpt:
+    container_name: ${REAL_GPT_REST_CONTAINER_NAME}
+    image: darwinintelligence/real_gpt_rest:${REAL_GPT_REST_TAG}
+    restart: always
+    networks:
+      - new
+    depends_on:
+      - mongo_db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    ports:
+      - "5010:8080"
+    volumes:
+      - type: bind
+        source: ${SERVER_SHARED_VOLUME}
+        target: /data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+  chromadb:
+    image: chromadb/chroma:0.5.11
+    volumes:
+      - ./chromadb:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=${ANONYMIZED_TELEMETRY:-TRUE}
+    ports:
+      - 8000:8000
+    networks:
+      - new
+  chrome:
+    image: selenium/node-chrome:latest
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    networks:
+      - new
+  selenium-hub:
+    image: selenium/hub:latest
+    ports:
+      - 4444:4444
+    networks:
+      - new
+
+networks:
+  new:

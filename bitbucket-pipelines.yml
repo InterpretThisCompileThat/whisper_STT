@@ -1,0 +1,67 @@
+pipelines:
+  branches:
+    master:
+      - step:
+          name: "Docker - Python"
+          services:
+            - docker
+          size: 2x
+          script:
+            - cd gpt_api
+            - python3 file_creator.py
+            - cd ..
+            - docker login --username ${DOCKERHUB_USER} --password ${DOCKERHUB_PASSWORD}
+            - docker build -t darwinintelligence/real_gpt_rest gpt_api/
+            - docker tag darwinintelligence/real_gpt_rest darwinintelligence/real_gpt_rest:latest
+            - docker push darwinintelligence/real_gpt_rest:latest
+      - step:
+          name: "Deploying to prod"
+          runs-on:
+            - "self.hosted"
+            - "linux.shell"
+          script:
+            - scp env/.env-prod darwin@${DARWIN_SERVER}:/home/darwin/prod/real_gpt_rest/.env
+            - scp Makefile docker-compose.yml darwin@${DARWIN_SERVER}:/home/darwin/prod/real_gpt_rest
+            - ssh darwin@${DARWIN_SERVER} 'bash -s' < deploy.sh darwin/prod/real_gpt_rest
+    develop:
+      - step:
+          name: "Docker - Python"
+          services:
+            - docker
+          size: 2x
+          script:
+            - cd gpt_api/
+            - python3 file_creator.py
+            - cd ..
+            - docker login --username ${DOCKERHUB_USER} --password ${DOCKERHUB_PASSWORD}
+            - docker build -t darwinintelligence/real_gpt_rest gpt_api/
+            - docker tag darwinintelligence/real_gpt_rest darwinintelligence/real_gpt_rest:dev
+            - docker push darwinintelligence/real_gpt_rest:dev
+      - step:
+          name: "Deploying to dev"
+          runs-on:
+            - "self.hosted"
+            - "linux.shell"
+          script:
+            - scp env/.env-dev darwin@${DEV_DARWIN_SERVER}:/home/darwin/dev/real_gpt_rest/.env
+            - scp Makefile docker-compose.yml darwin@${DEV_DARWIN_SERVER}:/home/darwin/dev/real_gpt_rest
+            - ssh darwin@${DEV_DARWIN_SERVER} 'bash -s' < deploy.sh darwin/dev/real_gpt_rest
+  default:
+    - step:
+        name: "Dependency Check - PIP"
+        image: python:3.10.12
+        script:
+          - pip3 install safety
+          - safety check -r gpt_api/requirements.txt --ignore=70612 --ignore=70624 --ignore=72731 --ignore=71924
+    - step:
+        name: "Linting Check and pytests"
+        image: python:3.10.12
+        script:
+          - pip3 install -r gpt_api/requirements.txt
+          - pip3 install pylint
+          - pylint gpt_api/*.py --fail-under=9.00
+
+definitions:
+  services:
+    docker:
+      memory: 4096
