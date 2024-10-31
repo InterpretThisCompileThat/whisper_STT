@@ -1,15 +1,6 @@
 version: "3.7"
 services:
-  mongo_db:
-    image: "mongo:4.4.3"
-    restart: always
-    networks:
-    - new
-    ports:
-    - 27018:27017
-    volumes:
-    - './data:/data/db'
-  gpt:
+  cli:
     container_name: ${REAL_GPT_REST_CONTAINER_NAME}
     image: darwinintelligence/real_gpt_rest:${REAL_GPT_REST_TAG}
     restart: always
